@@ -1,75 +1,62 @@
-# secureVpn
+# secureVpn-BPB
 
-**یک ریپو — همه چیز اینجاست.**
+**تنها ریپوی این پروژه:** https://github.com/MohamadHoseinMaleki/secureVpn-BPB
 
-https://github.com/MohamadHoseinMaleki/secureVpn-BPB
-
-سفارشی‌سازی BPB برای secureVpn:
-- اسم کانفیگ: `secureVpn-1 | CF-Worker :443` + فلگ لوکیشن
-- تعداد کانفیگ حدود ۱۰–۱۳ (نه ۲۴)
-- پچ برند + دیپلوی خودکار با GitHub Actions
+همه چیز همین‌جاست (پچ، دیپلوی، اسکریپت، مستندات). ریپوی دومی وجود ندارد.
 
 ---
 
-## ساختار
+## چی داخلشه
 
-```
-secureVpn-BPB/
-├── patches/          ← پچ‌های سورس (generateRemark + محدودیت آدرس)
-├── scripts/          ← پچ برند روی worker.js بیلد‌شده
-├── deploy/           ← wrangler + worker.js نهایی
-├── docs/             ← راهنما
-└── .github/workflows ← دیپلوی خودکار
-```
+| بخش | مسیر |
+|------|------|
+| پچ اسم کانفیگ‌ها (`generateRemark`) | `patches/utils-functions.ts` |
+| پچ برند روی worker بیلد‌شده | `scripts/patch-branding.js` |
+| دیپلوی خودکار | `.github/workflows/deploy.yml` + `deploy/` |
+| راهنمای دیپلوی | `docs/AUTO_DEPLOY.md` |
 
 ---
 
-## کار سریع
+## نصب و دیپلوی (خلاصه)
 
-### ۱) نصب اول پنل (یک‌بار)
-https://wizard.bpb-panel.workers.dev
+1. **نصب اول پنل** فقط با Wizard: https://wizard.bpb-panel.workers.dev  
+   (محدودیت رسمی BPB v5)
 
-### ۲) Secrets در همین ریپو (یک‌بار)
-Settings → Secrets → Actions:
+2. در GitHub این Secrets را بگذار:
+   - `CLOUDFLARE_API_TOKEN`
+   - `CLOUDFLARE_ACCOUNT_ID`
+   - `CF_WORKER_NAME`
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CF_WORKER_NAME`  ← اسم Worker پنلت
-
-### ۳) worker.js
+3. فایل `worker.js` را پچ کن و بگذار داخل `deploy/`:
 
 ```bash
 git clone https://github.com/MohamadHoseinMaleki/secureVpn-BPB.git
 cd secureVpn-BPB
-
-# فایل بیلد/خروجی خودت:
 node scripts/patch-branding.js /path/to/worker.js deploy/worker.js
-
 git add deploy/worker.js
 git commit -m "deploy worker"
 git push
 ```
 
-تب Actions → Deploy خودکار روی Cloudflare.
+بعد از push، تب Actions دیپلوی را انجام می‌دهد.
+
+جزئیات: [docs/AUTO_DEPLOY.md](docs/AUTO_DEPLOY.md)
 
 ---
 
-## تنظیمات پنل (پینگ بهتر — همه نت‌ها)
+## تنظیمات پنل برای پینگ بهتر
 
-| مورد | مقدار |
-|------|--------|
-| Protocol | فقط VLESS |
-| Port | فقط 443 |
-| IPv6 | Off |
-| TCP Fast Open | **Off** |
-| Clean IP | ۲–۴ تا |
-| Fingerprint | chrome / randomized |
+- Protocol: فقط VLESS
+- Port: فقط 443
+- IPv6: Off
+- **TCP Fast Open: Off**
+- Clean IP: ۲–۴ تا
+- Fingerprint: chrome یا randomized
 
 ---
 
-## پچ‌های کد
+## اسم کانفیگ‌ها (هدف)
 
-- `patches/utils-functions.ts` → `generateRemark` + `getConfigAddresses`
-- `scripts/patch-branding.js` → BPB → secureVpn روی فایل بیلد
-
-جزئیات دیپلوی: [docs/AUTO_DEPLOY.md](docs/AUTO_DEPLOY.md)
+- `secureVpn-1 | CF-Worker :443`
+- `secureVpn Best Ping`
+- عنوان ساب: `secureVpn`
