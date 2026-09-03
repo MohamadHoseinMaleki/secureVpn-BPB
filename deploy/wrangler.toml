@@ -1,0 +1,10 @@
+name = "securevpn"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# بعد از اولین نصب با Wizard، اسم Worker واقعی‌ات را اینجا بگذار
+# یا با متغیر محیطی در GitHub Actions ست کن
+
+[vars]
+# هیچ secret اینجا نگذار — از Cloudflare Dashboard / Secrets استفاده کن

@@ -1,0 +1,46 @@
+name: Deploy secureVpn Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check worker.js exists
+        run: |
+          if [ ! -f deploy/worker.js ]; then
+            echo "ERROR: deploy/worker.js پیدا نشد."
+            echo "اول worker.js بیلد/پچ‌شده را در deploy/worker.js بگذار."
+            exit 1
+          fi
+          wc -c deploy/worker.js
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
+      - name: Deploy to Cloudflare Workers
+        working-directory: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          WORKER_NAME="${{ secrets.CF_WORKER_NAME }}"
+          if [ -z "$WORKER_NAME" ]; then
+            echo "CF_WORKER_NAME secret تنظیم نشده"
+            exit 1
+          fi
+          wrangler deploy --name "$WORKER_NAME" --compatibility-date 2025-06-01 --compatibility-flags nodejs_compat
