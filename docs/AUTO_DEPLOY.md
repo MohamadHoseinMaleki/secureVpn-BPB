@@ -1,60 +1,26 @@
-# دیپلوی خودکار secureVpn — راهنمای کامل
+# دیپلوی خودکار — فقط همین ریپو
 
-## محدودیت BPB v5.1.1
+ریپو: https://github.com/MohamadHoseinMaleki/secureVpn-BPB
 
-طبق RELEASE رسمی:
+## نکته BPB v5
 
-> This version can only be deployed using ONE-CLICK online BPB Wizard  
-> manual deployment ... do not work on this release.
+نصب اول فقط با Wizard.  
+آپدیت بعدی Worker با Actions همین ریپو.
 
-یعنی:
-- **نصب اول** → فقط Wizard
-- **آپدیت بعدی Worker** → با این ریپو + Wrangler/Actions ممکن است
+## Secrets (یک‌بار در همین ریپو)
 
-اگر بعد از آپدیت Worker پنل خراب شد، از History کلودفلر نسخه قبل را برگردان.
-
-## Secrets لازم (یک‌بار)
-
-1. Cloudflare API Token با دسترسی Edit Workers
-2. Account ID
-3. اسم دقیق Worker پنل
-
-در GitHub:
-`Settings → Secrets → Actions`
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CF_WORKER_NAME`
-
-## جریان کار
-
-```
-Wizard (یک‌بار) → پنل بالا می‌آید
-        ↓
-سورس/پچ secureVpn → build → deploy/worker.js
-        ↓
-git push → GitHub Actions → wrangler deploy
-        ↓
-پنل با اسم secureVpn و تعداد کمتر کانفیگ
-```
-
-## تنظیمات پنل برای پینگ بهتر (همه نت‌ها)
-
-| تنظیم | مقدار |
+| Secret | توضیح |
 |--------|--------|
-| Protocol | فقط VLESS |
-| Ports | فقط 443 |
-| IPv6 | Off |
-| TCP Fast Open | **Off** |
-| Clean IP | ۲ تا ۴ تا تست‌شده |
-| Fingerprint | chrome / randomized |
-| Fragment | فقط اگر نت خاص لازم داشت |
+| CLOUDFLARE_API_TOKEN | توکن Edit Workers |
+| CLOUDFLARE_ACCOUNT_ID | Account ID |
+| CF_WORKER_NAME | اسم Worker پنل |
 
-## اسم کانفیگ‌ها
+## جریان
 
-با پچ `generateRemark`:
-- `secureVpn-1 | CF-Worker :443`
-- `secureVpn Best Ping`
+1. Wizard → پنل بالا می‌آید
+2. `deploy/worker.js` را بگذار (با `patch-branding.js`)
+3. `git push` → Actions دیپلوی می‌کند
 
-با `patch-branding.js` روی فایل بیلد:
-- جایگزینی رشته‌های BPB / Best Ping باقی‌مانده
+## TCP Fast Open
+
+در پنل **خاموش**.
