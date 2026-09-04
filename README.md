@@ -1,23 +1,39 @@
 # secureVpn-BPB
 
-پنل واقعی تو (بعد از Rollback):
+## واقعیت مهم (BPB v5.1.1)
+
+طبق مستندات رسمی:
+
+> This version can only be deployed using ONE-CLICK online BPB Wizard  
+> **manual deployment does not work on this release.**
+
+کد پنل بدون `EMBEDED_SETTINGS` (که فقط Wizard می‌گذارد) بالا نمی‌آید.  
+به همین خاطر هر بار `worker.js` پنل را با بیلد/پچ جایگزین کردیم، این خطا آمد:
+
+`can only be installed using BPB Wizard`
+
+### نتیجه
+- **پنل را دست نزن** — همان نصب Wizard + Rollback فعلی درست است.
+- اسم `secureVpn` را با یک **Worker جدا** روی لینک ساب اعمال می‌کنیم (نه روی خود پنل).
+
+پنل تو:
 https://rcnf9ofm8yrbsdx1.instagram-monitor-bot.workers.dev/4g3vkGn6-0kuc/panel
 
-Worker: `rcnf9ofm8yrbsdx1`
+---
 
-## قانون طلایی BPB v5
+## چه کارهایی از پنل انجام شد
 
-```text
-if (env.UUID || env.TR_PASS || typeof EMBEDED_SETTINGS === 'undefined') {
-  throw new Error('... only installed using BPB Wizard ...');
-}
-```
+- فقط VLESS / پورت 443 / IPv6 Off / TCP Fast Open Off  
+→ تعداد کانفیگ کمتر، پینگ بهتر روی همه نت‌ها
 
-یعنی **بیلد تمیز از سورس + wrangler** پنل را می‌شکند، چون `EMBEDED_SETTINGS` فقط موقع نصب Wizard داخل Worker می‌آید.
+## اسم ساب و کانفیگ = Worker بازنویس
 
-### کار درست
-1. پنل را با Wizard نگه دار (Rollback کردی — خوب است)
-2. تعداد کانفیگ و پینگ را از **تنظیمات پنل** کم کن
-3. برای اسم ساب/کانفیگ: فقط روی **همان worker.js دانلود‌شده از Cloudflare** پچ جراحی بزن (نه بیلد خام)
+فایل: [`sub-rewriter/worker.js`](sub-rewriter/worker.js)
 
-جزئیات: [docs/SAFE_PATH.md](docs/SAFE_PATH.md)
+این Worker:
+1. ساب BPB را می‌گیرد
+2. اسم هر کانفیگ را تمیز می‌کند → `secureVpn | ...`
+3. عنوان پروفایل را `secureVpn` می‌گذارد
+4. به کلاینت می‌دهد
+
+راهنما: [`docs/SUB_REWRITER.md`](docs/SUB_REWRITER.md)
