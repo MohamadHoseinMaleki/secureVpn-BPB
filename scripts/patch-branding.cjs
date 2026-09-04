@@ -1,18 +1,13 @@
 #!/usr/bin/env node
-/**
- * ESM version (package.json has "type": "module")
- * Usage:
- *   node scripts/patch-branding.js dist/worker.js deploy/worker.js
- */
-import fs from "fs";
-import path from "path";
+/** CommonJS version for Windows if needed */
+const fs = require("fs");
+const path = require("path");
 
 const input = process.argv[2] || "dist/worker.js";
 const output = process.argv[3] || "deploy/worker.js";
 
 if (!fs.existsSync(input)) {
   console.error("Input not found:", input);
-  console.error("First run: npm run build");
   process.exit(1);
 }
 
@@ -43,5 +38,4 @@ for (const [re, to] of pairs) {
 
 fs.mkdirSync(path.dirname(output), { recursive: true });
 fs.writeFileSync(output, code);
-console.log("OK Wrote", output);
-console.log("size", fs.statSync(output).size, "groups", n, "changed", code !== before);
+console.log("OK Wrote", output, fs.statSync(output).size, "groups", n);
