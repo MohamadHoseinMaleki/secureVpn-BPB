@@ -1,47 +1,11 @@
 #!/usr/bin/env node
 /**
- * ESM version (package.json has "type": "module")
- * Usage:
- *   node scripts/patch-branding.js dist/worker.js deploy/worker.js
+ * فقط برای خروجی npm run build — روی پنل v5 به‌تنهایی کافی نیست.
+ * برای Worker واقعی از scripts/surgical-brand.js استفاده کن.
  */
 import fs from "fs";
 import path from "path";
 
-const input = process.argv[2] || "dist/worker.js";
-const output = process.argv[3] || "deploy/worker.js";
-
-if (!fs.existsSync(input)) {
-  console.error("Input not found:", input);
-  console.error("First run: npm run build");
-  process.exit(1);
-}
-
-let code = fs.readFileSync(input, "utf8");
-const before = code;
-
-const pairs = [
-  [/💦 \$\{_project_\} Raw/g, "secureVpn"],
-  [/💦 BPB Panel Raw/g, "secureVpn"],
-  [/💦 BPB Raw/g, "secureVpn"],
-  [/BPB Panel/g, "secureVpn"],
-  [/"BPB"/g, '"secureVpn"'],
-  [/atob\('QlBC'\)/g, "'secureVpn'"],
-  [/atob\('YnBi'\)/g, "'secureVpn'"],
-  [/💦 \$\{chainSign\}Best Ping[^`]*🚀/g, "secureVpn Best Ping"],
-  [/💦 Best Ping/g, "secureVpn Best Ping"],
-  [/💦 🔗 Best Ping/g, "secureVpn Best Ping"],
-  [/filename=BPB/g, "filename=secureVpn"],
-  [/filename=bpb/g, "filename=secureVpn"],
-];
-
-let n = 0;
-for (const [re, to] of pairs) {
-  const next = code.replace(re, to);
-  if (next !== code) n++;
-  code = next;
-}
-
-fs.mkdirSync(path.dirname(output), { recursive: true });
-fs.writeFileSync(output, code);
-console.log("OK Wrote", output);
-console.log("size", fs.statSync(output).size, "groups", n, "changed", code !== before);
+console.error("DEPRECATED for live panel.");
+console.error("Use: node scripts/surgical-brand.js wizard-worker.js deploy/worker.js");
+process.exit(1);
