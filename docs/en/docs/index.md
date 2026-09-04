@@ -1,11 +1,6 @@
-<h1 align="center">BPB Panel</h1>
+# BPB Panel
 
-### 🌏 Readme in [Farsi](README_fa.md)
-
-<p align="center">
-  <img src="docs/assets/images/panel-overview.jpg" alt="Panel overview">
-</p>
-<br>
+![Pages Application](images/panel-overview.jpg)
 
 ## Introduction
 
@@ -13,9 +8,7 @@ This project is aimed to provide a user panel to access FREE, SECURE, PRIVATE pr
 
 🌟 If you found **BPB Panel** valuable, Your donations make all the difference 🌟
 
-### USDT (BEP20)
-
-```text
+```title="USDT (BEP20)"
 0xbdf15d41C56f861f25b2b11C835bd45dfD5b792F
 ```
 
@@ -33,7 +26,7 @@ This project is aimed to provide a user panel to access FREE, SECURE, PRIVATE pr
 10. **Password-protected panel:** Provides secure and private panel with full authentication.
 11. **Fully customizable:** Supports setting up clean IPs-domains, Proxy IPs, DNS servers, choosing ports and protocols, Warp endpoints and more.
 12. **Node ability:** Can share settings and proxies across other BPB users.
-13. **Proxy aggregation:** Supports aggregating another proxies into BPB proxies and deliver in a single subscription.
+13. **Proxy aggregation:** Supports aggregating another proxies into BPB proxies and deliver in a single subscription
 
 ## Limitations
 
@@ -42,10 +35,10 @@ This project is aimed to provide a user panel to access FREE, SECURE, PRIVATE pr
 
 ## Getting started
 
-- [Installation methods](https://bia-pain-bache.github.io/BPB-Worker-Panel/wizard/)
-- [Configuration](https://bia-pain-bache.github.io/BPB-Worker-Panel/configuration/)
-- [How to use](https://bia-pain-bache.github.io/BPB-Worker-Panel/usage/)
-- [FAQ](https://bia-pain-bache.github.io/BPB-Worker-Panel/faq/)
+- [Installation methods](wizard.md)
+- [Configuration](configuration/index.md)
+- [How to use](usage/index.md)
+- [FAQ](faq.md)
 
 ## Supported Clients
 
@@ -63,12 +56,3 @@ This project is aimed to provide a user panel to access FREE, SECURE, PRIVATE pr
 |    **Wireguard**    |                 |        :x:         |        :x:         |
 |   **AmneziaVPN**    |                 |        :x:         | :heavy_check_mark: |
 |    **WG Tunnel**    |                 |        :x:         | :heavy_check_mark: |
-
----
-
-### Special Thanks
-
-- VLESS, Trojan [Cloudflare-workers/pages proxy script](https://github.com/yonggekkk/Cloudflare-workers-pages-vless) by [yonggekkk](https://github.com/yonggekkk)
-- CF-vless code author [3Kmfi6HP](https://github.com/3Kmfi6HP/EDtunnel)
-- CF preferred IP program author [badafans](https://github.com/badafans/Cloudflare-IP-SpeedTest), [XIU2](https://github.com/XIU2/CloudflareSpeedTest)
->>>>>>> Stashed changes
