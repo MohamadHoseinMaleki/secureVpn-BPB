@@ -1,10 +1,6 @@
 /**
  * secureVpn Subscription Rewriter
- * Fetches a BPB (or any) subscription and rewrites config names + profile title.
- * Does NOT touch the BPB panel worker.
- *
- * Usage:
- *   https://YOUR_WORKER.workers.dev/?url=<encoded-subscription-url>
+ * Usage: https://YOUR_WORKER.workers.dev/?url=<encoded-sub-url>
  */
 
 const PROFILE_NAME = "secureVpn";
@@ -33,62 +29,101 @@ export default {
     let subUrl;
     try {
       subUrl = new URL(target);
+      subUrl.hash = ""; // fragment is client-only; never send to origin
     } catch {
       return new Response("Invalid url param", { status: 400 });
     }
 
-    // Only allow http(s)
     if (subUrl.protocol !== "https:" && subUrl.protocol !== "http:") {
       return new Response("Only http/https subscriptions allowed", { status: 400 });
     }
 
-    let upstream;
-    try {
-      upstream = await fetch(subUrl.toString(), {
-        headers: {
-          "User-Agent": request.headers.get("User-Agent") || "secureVpn-rewriter",
-          Accept: "*/*",
-        },
-        cf: { cacheTtl: 60, cacheEverything: false },
-      });
-    } catch (e) {
-      return new Response("Failed to fetch subscription: " + String(e), { status: 502 });
+    const cleanTarget = subUrl.toString();
+    const ua =
+      request.headers.get("User-Agent") ||
+      "v2rayNG/1.10.23";
+
+    const { text, status, via } = await fetchSubscription(cleanTarget, ua);
+
+    if (text == null) {
+      return new Response(
+        [
+          "Failed to fetch subscription",
+          "upstream_status: " + status,
+          "via: " + via,
+          "target: " + cleanTarget,
+        ].join("\n"),
+        { status: 502, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+      );
     }
 
-    if (!upstream.ok) {
-      return new Response("Upstream status " + upstream.status, { status: 502 });
-    }
-
-    const raw = await upstream.text();
-    const { lines, wasBase64 } = normalizeToLines(raw);
+    const { lines, wasBase64 } = normalizeToLines(text);
     const rewritten = lines.map((line, i) => rewriteLine(line, i + 1)).filter(Boolean);
     let body = rewritten.join("\n");
     if (wasBase64) {
-      body = btoa(unescape(encodeURIComponent(body)));
+      body = base64Encode(body);
     }
 
     const headers = new Headers();
     headers.set("Content-Type", "text/plain; charset=utf-8");
     headers.set("Cache-Control", "no-store");
-    headers.set(
-      "Profile-Title",
-      "base64:" + btoa(unescape(encodeURIComponent(PROFILE_NAME)))
-    );
+    headers.set("Profile-Title", "base64:" + base64Encode(PROFILE_NAME));
     headers.set("Content-Disposition", 'attachment; filename="secureVpn.txt"');
-
-    // Pass through subscription-userinfo if present
-    const sui = upstream.headers.get("subscription-userinfo");
-    if (sui) headers.set("subscription-userinfo", sui);
+    headers.set("X-Rewriter-Via", via);
 
     return new Response(body, { status: 200, headers });
   },
 };
 
+async function fetchSubscription(target, ua) {
+  // 1) Direct
+  let r = await tryFetch(target, ua);
+  if (r.ok && r.text && r.text.length > 20) {
+    return { text: r.text, status: r.status, via: "direct" };
+  }
+
+  // 2) Fallback proxies (worker-to-workers.dev often returns 404)
+  const proxies = [
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(target),
+    "https://corsproxy.io/?" + encodeURIComponent(target),
+  ];
+
+  for (const p of proxies) {
+    r = await tryFetch(p, ua);
+    if (r.ok && r.text && r.text.length > 20 && !looksLikeHtmlError(r.text)) {
+      return { text: r.text, status: r.status, via: p.split("?")[0] };
+    }
+  }
+
+  return { text: null, status: r?.status ?? 0, via: "all-failed" };
+}
+
+async function tryFetch(url, ua) {
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": ua,
+        Accept: "*/*",
+      },
+      redirect: "follow",
+    });
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text };
+  } catch (e) {
+    return { ok: false, status: 0, text: String(e) };
+  }
+}
+
+function looksLikeHtmlError(t) {
+  const s = t.slice(0, 200).toLowerCase();
+  return s.includes("<html") || s.includes("<!doctype") || s.includes("error code");
+}
+
 function normalizeToLines(raw) {
   const trimmed = raw.trim();
   if (!trimmed) return { lines: [], wasBase64: false };
 
-  // Already looks like share links
   if (/^(vless|vmess|trojan|ss|ssr|wireguard|hysteria):\/\//im.test(trimmed)) {
     return {
       lines: trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
@@ -96,9 +131,8 @@ function normalizeToLines(raw) {
     };
   }
 
-  // Try base64
   try {
-    const decoded = decodeURIComponent(escape(atob(trimmed.replace(/\s/g, ""))));
+    const decoded = base64Decode(trimmed.replace(/\s/g, ""));
     if (/^(vless|vmess|trojan|ss):\/\//im.test(decoded) || decoded.includes("://")) {
       return {
         lines: decoded.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
@@ -118,7 +152,6 @@ function normalizeToLines(raw) {
 function rewriteLine(line, index) {
   if (!line || line.startsWith("#")) return line;
 
-  // vless/trojan/ss with #remark
   const hash = line.indexOf("#");
   if (hash !== -1 && /^(vless|trojan|ss|hy2|hysteria2|tuic):\/\//i.test(line)) {
     const base = line.slice(0, hash);
@@ -127,17 +160,13 @@ function rewriteLine(line, index) {
     return base + "#" + encodeURIComponent(name);
   }
 
-  // vmess base64 json
   if (/^vmess:\/\//i.test(line)) {
     try {
       const b64 = line.replace(/^vmess:\/\//i, "").trim();
-      const json = JSON.parse(decodeURIComponent(escape(atob(b64))));
+      const json = JSON.parse(base64Decode(b64));
       const old = json.ps || json.remark || "";
       json.ps = buildName(String(old), index, line);
-      const out =
-        "vmess://" +
-        btoa(unescape(encodeURIComponent(JSON.stringify(json))));
-      return out;
+      return "vmess://" + base64Encode(JSON.stringify(json));
     } catch {
       return line;
     }
@@ -148,34 +177,18 @@ function rewriteLine(line, index) {
 
 function buildName(oldRemark, index, line) {
   const loc = guessLocation(oldRemark, line);
-  // User asked: clean names — secureVpn + location only
   return loc ? `secureVpn | ${loc}` : `secureVpn | ${index}`;
 }
 
 function guessLocation(remark, line) {
   const r = (remark || "").trim();
+  if (/Clean\s*IP/i.test(r)) return "Clean IP";
+  if (/\bDomain\b/i.test(r)) return "Cloudflare";
+  if (/\bIPv6\b/i.test(r)) return "IPv6";
+  if (/\bIPv4\b/i.test(r)) return "IPv4";
+  if (/Upstream/i.test(r)) return "Upstream";
+  if (/Best\s*Ping/i.test(r)) return "Best Ping";
 
-  // Common BPB patterns
-  // 💦 1. VLESS - Domain : 443
-  let m = r.match(/Clean\s*IP/i);
-  if (m) return "Clean IP";
-
-  m = r.match(/\bDomain\b/i);
-  if (m) return "Cloudflare";
-
-  m = r.match(/\bIPv6\b/i);
-  if (m) return "IPv6";
-
-  m = r.match(/\bIPv4\b/i);
-  if (m) return "IPv4";
-
-  m = r.match(/Upstream/i);
-  if (m) return "Upstream";
-
-  m = r.match(/Best\s*Ping/i);
-  if (m) return "Best Ping";
-
-  // If remark already short and useful, strip BPB noise
   let cleaned = r
     .replace(/💦/g, "")
     .replace(/BPB\s*Panel/gi, "")
@@ -190,17 +203,13 @@ function guessLocation(remark, line) {
 
   if (cleaned && cleaned.length <= 40) return cleaned;
 
-  // Hostname from URL
   try {
-    const proto = line.match(/^(vless|trojan|ss):\/\//i);
-    if (proto) {
-      const without = line.split("#")[0];
-      const hostMatch = without.match(/@([^:?/]+)/) || without.match(/:\/\/([^:?/]+)/);
-      if (hostMatch) {
-        const host = hostMatch[1];
-        if (host.includes("workers.dev") || host.includes("pages.dev")) return "Cloudflare";
-        return host.replace(/^www\./, "");
-      }
+    const without = line.split("#")[0];
+    const hostMatch = without.match(/@([^:?/]+)/) || without.match(/:\/\/([^:?/]+)/);
+    if (hostMatch) {
+      const host = hostMatch[1];
+      if (host.includes("workers.dev") || host.includes("pages.dev")) return "Cloudflare";
+      return host.replace(/^www\./, "");
     }
   } catch {
     /* ignore */
@@ -213,10 +222,14 @@ function safeDecode(s) {
   try {
     return decodeURIComponent(s);
   } catch {
-    try {
-      return decodeURIComponent(s.replace(/\+/g, " "));
-    } catch {
-      return s;
-    }
+    return s;
   }
+}
+
+function base64Encode(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function base64Decode(b64) {
+  return decodeURIComponent(escape(atob(b64)));
 }
