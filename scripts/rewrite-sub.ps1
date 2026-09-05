@@ -1,6 +1,6 @@
-# secureVpn: download BPB sub, rename configs, save + optional static worker body
+# secureVpn: download BPB sub, rename configs, save file
 # Usage:
-#   .\scripts\rewrite-sub.ps1 -SubUrl "https://rcnf9.../sub/raw?app=xray"
+#   powershell -ExecutionPolicy Bypass -File .\scripts\rewrite-sub.ps1 -SubUrl "https://.../sub/raw?app=xray"
 
 param(
   [Parameter(Mandatory = $true)]
@@ -10,17 +10,29 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-New-Item -ItemType Directory -Force -Path (Split-Path $OutFile) | Out-Null
+
+$dir = Split-Path -Parent $OutFile
+if ($dir -and -not (Test-Path $dir)) {
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+}
 
 Write-Host "Downloading subscription..."
-$wc = New-Object System.Net.WebClient
-$wc.Headers.Add("User-Agent", "v2rayNG/1.10.23")
-$raw = $wc.DownloadString($SubUrl.Trim())
+try {
+  $wc = New-Object System.Net.WebClient
+  $wc.Encoding = [System.Text.Encoding]::UTF8
+  $wc.Headers.Add("User-Agent", "v2rayNG/1.10.23")
+  $raw = $wc.DownloadString($SubUrl.Trim())
+} catch {
+  Write-Host "Download failed: $_"
+  exit 1
+}
 
 function Decode-Base64Utf8([string]$s) {
-  $bytes = [Convert]::FromBase64String(($s -replace "\s", ""))
+  $clean = ($s -replace "\s", "")
+  $bytes = [Convert]::FromBase64String($clean)
   return [System.Text.Encoding]::UTF8.GetString($bytes)
 }
+
 function Encode-Base64Utf8([string]$s) {
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($s)
   return [Convert]::ToBase64String($bytes)
@@ -28,72 +40,94 @@ function Encode-Base64Utf8([string]$s) {
 
 $wasBase64 = $false
 $text = $raw.Trim()
+$lines = @()
+
 if ($text -match '^(vless|vmess|trojan|ss)://') {
-  $lines = $text -split "`r?`n" | Where-Object { $_.Trim() -ne "" }
+  $lines = $text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
 } else {
   try {
     $decoded = Decode-Base64Utf8 $text
     if ($decoded -match '://') {
       $wasBase64 = $true
-      $lines = $decoded -split "`r?`n" | Where-Object { $_.Trim() -ne "" }
+      $lines = $decoded -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
     } else {
-      $lines = $text -split "`r?`n" | Where-Object { $_.Trim() -ne "" }
+      $lines = $text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
     }
   } catch {
-    $lines = $text -split "`r?`n" | Where-Object { $_.Trim() -ne "" }
+    $lines = $text -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
   }
 }
 
-function Get-Name($remark, $index, $line) {
-  $r = "$remark"
+function Get-Name([string]$remark, [int]$index, [string]$line) {
+  $r = [string]$remark
   if ($r -match 'Clean\s*IP') { return "$ProfileName | Clean IP" }
   if ($r -match 'Domain') { return "$ProfileName | Cloudflare" }
   if ($r -match 'IPv6') { return "$ProfileName | IPv6" }
   if ($r -match 'IPv4') { return "$ProfileName | IPv4" }
   if ($r -match 'Best\s*Ping') { return "$ProfileName | Best Ping" }
   if ($r -match 'Upstream') { return "$ProfileName | Upstream" }
-  $clean = $r -replace '💦', '' -replace 'BPB\s*Panel', '' -replace 'VLESS', '' -replace 'Trojan', ''
-  $clean = $clean -replace '\d+\.', '' -replace '\s+:\s*\d+', '' -replace '\s+', ' '
+
+  $clean = $r
+  $clean = $clean -replace 'BPB\s*Panel', ''
+  $clean = $clean -replace 'BPB', ''
+  $clean = $clean -replace 'VLESS', ''
+  $clean = $clean -replace 'Trojan', ''
+  $clean = $clean -replace '\d+\.', ''
+  $clean = $clean -replace '\s*:\s*\d+', ''
+  $clean = $clean -replace '[^\x20-\x7E]', ' '
+  $clean = $clean -replace '\s+', ' '
   $clean = $clean.Trim()
-  if ($clean.Length -gt 0 -and $clean.Length -le 40) { return "$ProfileName | $clean" }
+
+  if ($clean.Length -gt 0 -and $clean.Length -le 40) {
+    return "$ProfileName | $clean"
+  }
   return "$ProfileName | $index"
 }
 
-$out = New-Object System.Collections.Generic.List[string]
+$outLines = New-Object System.Collections.Generic.List[string]
 $i = 0
+
 foreach ($line in $lines) {
-  $line = $line.Trim()
-  if ($line -eq "" -or $line.StartsWith("#")) { continue }
+  if ([string]::IsNullOrWhiteSpace($line)) { continue }
+  if ($line.StartsWith("#")) { continue }
   $i++
-  if ($line -match '^(vless|trojan|ss)://' -and $line.Contains("#")) {
+
+  if (($line -match '^(vless|trojan|ss)://') -and $line.Contains("#")) {
     $idx = $line.IndexOf("#")
     $base = $line.Substring(0, $idx)
-    $old = [Uri]::UnescapeDataString($line.Substring($idx + 1))
+    $old = $line.Substring($idx + 1)
+    try { $old = [Uri]::UnescapeDataString($old) } catch { }
     $name = Get-Name $old $i $line
-    $out.Add($base + "#" + [Uri]::EscapeDataString($name))
+    $outLines.Add($base + "#" + [Uri]::EscapeDataString($name))
+    continue
   }
-  elseif ($line -match '^vmess://') {
+
+  if ($line -match '^vmess://') {
     try {
-      $b64 = $line -replace '^vmess://', ''
-      $json = Decode-Base64Utf8 $b64 | ConvertFrom-Json
+      $b64 = $line.Substring(8)
+      $jsonText = Decode-Base64Utf8 $b64
+      $json = $jsonText | ConvertFrom-Json
       $old = [string]$json.ps
       $json.ps = Get-Name $old $i $line
       $newJson = $json | ConvertTo-Json -Compress
-      $out.Add("vmess://" + (Encode-Base64Utf8 $newJson))
+      $outLines.Add("vmess://" + (Encode-Base64Utf8 $newJson))
     } catch {
-      $out.Add($line)
+      $outLines.Add($line)
     }
+    continue
   }
-  else {
-    $out.Add($line)
-  }
+
+  $outLines.Add($line)
 }
 
-$body = ($out -join "`n")
-if ($wasBase64) { $body = Encode-Base64Utf8 $body }
+$body = ($outLines -join "`n")
+if ($wasBase64) {
+  $body = Encode-Base64Utf8 $body
+}
 
-[System.IO.File]::WriteAllText((Resolve-Path .).Path + "\" + $OutFile.Replace("/", "\"), $body)
-Write-Host "OK wrote $OutFile ($($out.Count) configs)"
-Write-Host "Profile name target: $ProfileName"
-Write-Host ""
-Write-Host "Next: either import this file in client, or paste into static worker (see docs/LOCAL_REWRITE.md)"
+$fullPath = Join-Path (Get-Location) $OutFile
+[System.IO.File]::WriteAllText($fullPath, $body, [System.Text.UTF8Encoding]::new($false))
+
+Write-Host "OK wrote $fullPath"
+Write-Host "Configs: $($outLines.Count)"
+Write-Host "Profile: $ProfileName"
